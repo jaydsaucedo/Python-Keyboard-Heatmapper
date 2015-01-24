@@ -1,7 +1,9 @@
 from __future__ import division
+from signal import *
 import re, Image
 import pythoncom, pyHook
 import json
+import ctypes
 
 # A map of key ids => the number of times they have been pressed.
 keys_pressed = {}
@@ -130,6 +132,14 @@ def buildHeatmap(t):
 	
 	return True
 
+def sig_handler(sig, frame):
+	try:
+		print 'Terminating.'
+		saveState(CONF_FILE, keys_pressed)
+	except:
+		print 'There was an error saving to disk.'
+	ctypes.windll.user32.PostQuitMessage(0)
+
 if __name__ == "__main__":
 	try:
 		with open(CONF_FILE) as f:
@@ -137,6 +147,11 @@ if __name__ == "__main__":
 			keys_pressed = json.loads(f.read())
 	except IOError:
 		print 'No previous file detected. Starting from scratch.'
+
+	# Register signal handlers before we enter the pythoncom loop
+	# signal(SIGQUIT, sig_handler)  # Windows doesn't have this
+	signal(SIGINT, sig_handler)
+	signal(SIGTERM, sig_handler)
 
 	# create a hook manager
 	hm = pyHook.HookManager()
