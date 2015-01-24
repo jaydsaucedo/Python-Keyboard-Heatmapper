@@ -1,3 +1,4 @@
+from __future__ import division
 import re, Image
 import pythoncom, pyHook
 import json
