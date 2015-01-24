@@ -1,8 +1,10 @@
 import re, Image
 import pythoncom, pyHook
+import json
 
 # A map of key ids => the number of times they have been pressed.
 keys_pressed = {}
+CONF_FILE = 'captured.json'
 
 def OnKeyboardEvent(event):	
 	global keys_pressed
@@ -16,6 +18,11 @@ def OnKeyboardEvent(event):
 		print 'Building heatmap...'
 		buildHeatmap(keys_pressed)
 		print "Built!"
+
+	if(key == "F8" and isKeyDown('VK_CONTROL')):
+		print 'Saving state to %s...' % CONF_FILE
+		saveState(CONF_FILE, keys_pressed)
+		print 'Saved!'
 		
 	if(key == "Return" and event.Extended == 1):
 		key = "NumpadReturn"
@@ -28,6 +35,10 @@ def OnKeyboardEvent(event):
 
 # return True to pass the event to other handlers
 	return True
+
+def saveState(filename, t):
+	with open(filename, 'w') as f:
+		f.write(json.dumps(t))
 
 def buildHeatmap(t):
 	biggest = max(v for k, v in t.iteritems())
@@ -112,6 +123,13 @@ def buildHeatmap(t):
 	return True
 
 if __name__ == "__main__":
+	try:
+		with open(CONF_FILE) as f:
+			print 'Reading previous state from %s...' % CONF_FILE
+			keys_pressed = json.loads(f.read())
+	except IOError:
+		print 'No previous file detected. Starting from scratch.'
+
 	# create a hook manager
 	hm = pyHook.HookManager()
 	# watch for all mouse events
