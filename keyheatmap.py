@@ -6,24 +6,31 @@ import json
 keys_pressed = {}
 CONF_FILE = 'captured.json'
 
-def OnKeyboardEvent(event):	
-	global keys_pressed
-
+def CheckHotkey(event):
 	def isKeyDown(key):
 		return pyHook.GetKeyState(pyHook.HookConstants.VKeyToID(key)) != 0
-
-	key =  event.Key
 	
-	if(key == "F9" and isKeyDown('VK_CONTROL')):
-		print 'Building heatmap...'
-		buildHeatmap(keys_pressed)
-		print "Built!"
+	key = event.Key
 
-	if(key == "F8" and isKeyDown('VK_CONTROL')):
-		print 'Saving state to %s...' % CONF_FILE
-		saveState(CONF_FILE, keys_pressed)
-		print 'Saved!'
-		
+	if (isKeyDown('VK_CONTROL')):
+		if(key == "F9"):
+			print 'Building heatmap...'
+			buildHeatmap(keys_pressed)
+			print "Built!"
+
+		if(key == "F8"):
+			print 'Saving state to %s...' % CONF_FILE
+			saveState(CONF_FILE, keys_pressed)
+			print 'Saved!'
+
+	# return True to pass the event to other handlers
+	return True
+
+def OnKeyboardEvent(event):	
+	global keys_pressed	
+	
+	key = event.Key
+
 	if(key == "Return" and event.Extended == 1):
 		key = "NumpadReturn"
 	
@@ -33,7 +40,7 @@ def OnKeyboardEvent(event):
 		keys_pressed[key] = 1
 	print key
 
-# return True to pass the event to other handlers
+	# return True to pass the event to other handlers
 	return True
 
 def saveState(filename, t):
@@ -132,8 +139,9 @@ if __name__ == "__main__":
 
 	# create a hook manager
 	hm = pyHook.HookManager()
-	# watch for all mouse events
-	hm.KeyDown = OnKeyboardEvent
+	# watch for all keyboard events
+	hm.KeyUp = OnKeyboardEvent  # Log keystrokes on KeyUp to prevent repeating keys
+	hm.KeyDown = CheckHotkey    # Still check for hotkey presses on KeyDown
 	# set the hook
 	hm.HookKeyboard()
 	# wait forever
