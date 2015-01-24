@@ -1,45 +1,35 @@
 import re, Image
 import pythoncom, pyHook
 
-keys_pressed = []
-#for shortcut to compile
-ctrl_pressed = False
-f9_pressed = False
+# A map of key ids => the number of times they have been pressed.
+keys_pressed = {}
 
-def OnKeyboardEvent(event):
-	global ctrl_pressed, f9_pressed, keys_pressed
+def OnKeyboardEvent(event):	
+	global keys_pressed
+
+	def isKeyDown(key):
+		return pyHook.GetKeyState(pyHook.HookConstants.VKeyToID(key)) != 0
+
+	key =  event.Key
 	
-	key =  event.Key  
-	time = event.Time
-	if(key == "Lcontrol" or key == "Rcontrol"):
-		ctrl_pressed = time
-	if(key == "F9"):
-		f9_pressed = time
-	if(f9_pressed and ctrl_pressed and (abs(ctrl_pressed - f9_pressed) < 300)):
+	if(key == "F9" and isKeyDown('VK_CONTROL')):
+		print 'Building heatmap...'
+		buildHeatmap(keys_pressed)
 		print "Built!"
-		buildHeatmap()
 		
-	if(event.Key == "Return" and event.Extended == 1):
+	if(key == "Return" and event.Extended == 1):
 		key = "NumpadReturn"
 	
-	keys_pressed.append(key)
-	print len(keys_pressed)
+	if key in keys_pressed:
+		keys_pressed[key] += 1
+	else:
+		keys_pressed[key] = 1
+	print key
 
 # return True to pass the event to other handlers
 	return True
 
-def buildHeatmap():
-	global keys_pressed
-	
-	print keys_pressed
-	t = {}
-
-	for i in keys_pressed:
-		if i in t:
-			t[i] = t[i] + 1.0
-		else:
-			t[i] = 1.0
-
+def buildHeatmap(t):
 	biggest = max(v for k, v in t.iteritems())
 	print biggest
 
@@ -116,16 +106,17 @@ def buildHeatmap():
 
 		im.paste(region, box)
 
-	im.save('keyboard_heatmap.jpg')		
+	im.save('keyboard_heatmap.jpg')
 	im.show()
 	
 	return True
-	
-# create a hook manager
-hm = pyHook.HookManager()
-# watch for all mouse events
-hm.KeyDown = OnKeyboardEvent
-# set the hook
-hm.HookKeyboard()
-# wait forever
-pythoncom.PumpMessages() 
+
+if __name__ == "__main__":
+	# create a hook manager
+	hm = pyHook.HookManager()
+	# watch for all mouse events
+	hm.KeyDown = OnKeyboardEvent
+	# set the hook
+	hm.HookKeyboard()
+	# wait forever
+	pythoncom.PumpMessages()
