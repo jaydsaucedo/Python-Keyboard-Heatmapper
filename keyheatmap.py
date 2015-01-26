@@ -1,45 +1,56 @@
+from __future__ import division
+from signal import *
 import re, Image
 import pythoncom, pyHook
+import json
+import ctypes
 
-keys_pressed = []
-#for shortcut to compile
-ctrl_pressed = False
-f9_pressed = False
+# A map of key ids => the number of times they have been pressed.
+keys_pressed = {}
+CONF_FILE = 'captured.json'
 
-def OnKeyboardEvent(event):
-	global ctrl_pressed, f9_pressed, keys_pressed
+def CheckHotkey(event):
+	def isKeyDown(key):
+		return pyHook.GetKeyState(pyHook.HookConstants.VKeyToID(key)) != 0
 	
-	key =  event.Key  
-	time = event.Time
-	if(key == "Lcontrol" or key == "Rcontrol"):
-		ctrl_pressed = time
-	if(key == "F9"):
-		f9_pressed = time
-	if(f9_pressed and ctrl_pressed and (abs(ctrl_pressed - f9_pressed) < 300)):
-		print "Built!"
-		buildHeatmap()
-		
-	if(event.Key == "Return" and event.Extended == 1):
-		key = "NumpadReturn"
-	
-	keys_pressed.append(key)
-	print len(keys_pressed)
+	key = event.Key
 
-# return True to pass the event to other handlers
+	if (isKeyDown('VK_CONTROL')):
+		if(key == "F9"):
+			print 'Building heatmap...'
+			buildHeatmap(keys_pressed)
+			print "Built!"
+
+		if(key == "F8"):
+			print 'Saving state to %s...' % CONF_FILE
+			saveState(CONF_FILE, keys_pressed)
+			print 'Saved!'
+
+	# return True to pass the event to other handlers
 	return True
 
-def buildHeatmap():
-	global keys_pressed
+def OnKeyboardEvent(event):	
+	global keys_pressed	
 	
-	print keys_pressed
-	t = {}
+	key = event.Key
 
-	for i in keys_pressed:
-		if i in t:
-			t[i] = t[i] + 1.0
-		else:
-			t[i] = 1.0
+	if(key == "Return" and event.Extended == 1):
+		key = "NumpadReturn"
+	
+	if key in keys_pressed:
+		keys_pressed[key] += 1
+	else:
+		keys_pressed[key] = 1
+	print key
 
+	# return True to pass the event to other handlers
+	return True
+
+def saveState(filename, t):
+	with open(filename, 'w') as f:
+		f.write(json.dumps(t))
+
+def buildHeatmap(t):
 	biggest = max(v for k, v in t.iteritems())
 	print biggest
 
@@ -116,16 +127,38 @@ def buildHeatmap():
 
 		im.paste(region, box)
 
-	im.save('keyboard_heatmap.jpg')		
+	im.save('keyboard_heatmap.jpg')
 	im.show()
 	
 	return True
-	
-# create a hook manager
-hm = pyHook.HookManager()
-# watch for all mouse events
-hm.KeyDown = OnKeyboardEvent
-# set the hook
-hm.HookKeyboard()
-# wait forever
-pythoncom.PumpMessages() 
+
+def sig_handler(sig, frame):
+	try:
+		print 'Terminating.'
+		saveState(CONF_FILE, keys_pressed)
+	except:
+		print 'There was an error saving to disk.'
+	ctypes.windll.user32.PostQuitMessage(0)
+
+if __name__ == "__main__":
+	try:
+		with open(CONF_FILE) as f:
+			print 'Reading previous state from %s...' % CONF_FILE
+			keys_pressed = json.loads(f.read())
+	except IOError:
+		print 'No previous file detected. Starting from scratch.'
+
+	# Register signal handlers before we enter the pythoncom loop
+	# signal(SIGQUIT, sig_handler)  # Windows doesn't have this
+	signal(SIGINT, sig_handler)
+	signal(SIGTERM, sig_handler)
+
+	# create a hook manager
+	hm = pyHook.HookManager()
+	# watch for all keyboard events
+	hm.KeyUp = OnKeyboardEvent  # Log keystrokes on KeyUp to prevent repeating keys
+	hm.KeyDown = CheckHotkey    # Still check for hotkey presses on KeyDown
+	# set the hook
+	hm.HookKeyboard()
+	# wait forever
+	pythoncom.PumpMessages()
